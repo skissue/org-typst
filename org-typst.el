@@ -29,6 +29,10 @@
 ;;; Code:
 
 ;; Babel functionality is based on https://github.com/Cj-bc/ob-typst
+(defcustom org-typst-default-format "png"
+  "Default format to use when rendering Typst markup."
+  :type 'string)
+
 (defcustom org-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
   "List of strings that will be prepended to all Typst code. Use
  to add packages, set rules, etc.
@@ -36,6 +40,31 @@
 By default, contains a rule to appropriately size the output
 image."
   :type '(repeat string))
+
+(defvar org-babel-default-header-args:typst
+  '((:results . "file graphics raw"))
+  "Default arguments to use when evaluating a Typst source block.
+
+Having \"raw\" outputs a raw link, which can be shown inline with
+`org-toggle-inline-images'.")
+
+(defun org-typst--babel-convert-var (var)
+  (cond
+   ((listp var)
+    (let ((list (mapconcat #'org-typst--babel-convert-var
+                           var
+                           ", ")))
+      (format "(%s)" list)))
+   (t
+    (format "\"%s\"" var))))
+
+(defun org-babel-variable-assignments:typst (params)
+  (mapcar
+   (lambda (var)
+     (format "#let %s = %s"
+             (car var)
+             (org-typst--babel-convert-var (cdr var))))
+   (org-babel--get-vars params)))
 
 (defun org-typst--babel-create-image (body tofile)
   "Create an image from Typst source using external process.
@@ -67,8 +96,11 @@ formats are png, pdf, and svg."
 (defun org-babel-execute:typst (body params)
   "Execute a block of Typst markup."
   (let* ((out-file (or (alist-get :outfile params)
-                       (org-babel-temp-file "ob-typst-out" (format ".%s" ob-typst/default-format)))))
-    (org-typst--babel-create-image body out-file)
+                       (org-babel-temp-file "ob-typst-out"
+                                            (format ".%s" org-typst-default-format))))
+         (vars (org-babel-variable-assignments:typst params))
+         (full-body (org-babel-expand-body:generic body params vars)))
+    (org-typst--babel-create-image full-body out-file)
     out-file))
 
 (provide 'org-typst)
