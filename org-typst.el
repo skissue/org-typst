@@ -58,6 +58,7 @@ Having \"raw\" outputs a raw link, which can be shown inline with
 `org-toggle-inline-images'.")
 
 (defun org-typst--babel-convert-var (var)
+  "Convert the value VAR to an appropriate representation in Typst."
   (cond
    ((listp var)
     (let ((list (mapconcat #'org-typst--babel-convert-var
@@ -72,6 +73,8 @@ Having \"raw\" outputs a raw link, which can be shown inline with
     (format "\"%s\"" var))))
 
 (defun org-babel-variable-assignments:typst (params)
+  "Return Typst markup that sets all variables from PARAMS,
+converting values with `org-typst--babel-convert-var'."
   (mapcar
    (lambda (var)
      (format "#let %s = %s"
