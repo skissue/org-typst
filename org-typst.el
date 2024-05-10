@@ -55,6 +55,8 @@ Having \"raw\" outputs a raw link, which can be shown inline with
                            var
                            ", ")))
       (format "(%s)" list)))
+   ((numberp var)
+    (number-to-string var))
    (t
     (format "\"%s\"" var))))
 
