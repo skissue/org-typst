@@ -41,6 +41,15 @@ By default, contains a rule to appropriately size the output
 image."
   :type '(repeat string))
 
+(defcustom org-typst-babel-hline-value "none"
+  "A string that controls what to replace the `hline' symbol with
+when using a table as a variable and horizontal lines are
+included. By default, `hline' is replaced with the 'none' value.
+
+Note that this is interpolated literally, so strings need quotes
+around them!"
+  :type 'string)
+
 (defvar org-babel-default-header-args:typst
   '((:results . "file graphics raw"))
   "Default arguments to use when evaluating a Typst source block.
@@ -57,6 +66,8 @@ Having \"raw\" outputs a raw link, which can be shown inline with
       (format "(%s)" list)))
    ((numberp var)
     (number-to-string var))
+   ((eq 'hline var)
+    org-typst-babel-hline-value)
    (t
     (format "\"%s\"" var))))
 
