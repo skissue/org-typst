@@ -1,9 +1,10 @@
-;;; org-typst.el --- Typst integration for Org Mode -*- lexical-binding: t -*-
+;;; ob-typst.el --- Org Babel support for Typst -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024 Ad
 
 ;; Version: 0.1.0
-;; Package-Requires: ((org-mode "9.6"))
+;; Package-Requires: ((emacs "26.1") (org "9.6"))
+;; Keywords: literate programming, tools
 ;; Homepage: https://github.com/skissue/org-typst
 
 ;; This file is not part of GNU Emacs
@@ -24,14 +25,30 @@
 
 ;;; Commentary:
 
-;; (WIP) Typst integration for Org Mode
+;; Evaluate Typst source blocks with Org Babel.  Requires the `typst'
+;; executable on `exec-path'.
+;;
+;; Enable with:
+;;
+;;   (org-babel-do-load-languages 'org-babel-load-languages
+;;                                '((typst . t)))
 
 ;;; Code:
+
+(require 'ob)
+(require 'org-macs)
+(require 'subr-x)
+
+(defgroup ob-typst nil
+  "Evaluate Typst source blocks with Org Babel."
+  :group 'org-babel
+  :prefix "org-typst-")
 
 ;; Babel functionality is based on https://github.com/Cj-bc/ob-typst
 (defcustom org-typst-default-format "png"
   "Default format to use when rendering Typst markup."
-  :type 'string)
+  :type 'string
+  :group 'ob-typst)
 
 (defcustom org-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
   "List of strings that will be prepended to all Typst code. Use
@@ -39,17 +56,20 @@
 
 By default, contains a rule to appropriately size the output
 image."
-  :type '(repeat string))
+  :type '(repeat string)
+  :group 'ob-typst)
 
 (defcustom org-typst-babel-hline-value "none"
   "A string that controls what to replace the `hline' symbol with
 when using a table as a variable and horizontal lines are
-included. By default, `hline' is replaced with the 'none' value.
+included. By default, `hline' is replaced with the Typst value none.
 
 Note that this is interpolated literally, so strings need quotes
 around them!"
-  :type 'string)
+  :type 'string
+  :group 'ob-typst)
 
+;;;###autoload
 (defvar org-babel-default-header-args:typst
   '((:results . "file graphics raw"))
   "Default arguments to use when evaluating a Typst source block.
@@ -86,7 +106,7 @@ converting values with `org-typst--babel-convert-var'."
   "Create an image from Typst source using external process.
 
 The Typst markup BODY is saved to a temporary Typst file, then converted to an
-image file using 'typst compile'.
+image file using the typst compile command.
 
 The generated image file is eventually moved to TOFILE.
 
@@ -119,6 +139,6 @@ formats are png, pdf, and svg."
     (org-typst--babel-create-image full-body out-file)
     out-file))
 
-(provide 'org-typst)
+(provide 'ob-typst)
 
-;;; org-typst.el ends here
+;;; ob-typst.el ends here
