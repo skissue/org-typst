@@ -132,14 +132,16 @@ formats are png, pdf, and svg."
 
 ;;;###autoload
 (defun org-babel-execute:typst (body params)
-  "Execute a block of Typst markup."
-  (let* ((out-file (or (alist-get :outfile params)
+  "Execute a block BODY of Typst markup.
+Write to :file in PARAMS.  If :file is not given, use a temporary output
+file."
+  (let* ((out-file (or (alist-get :file params)
                        (org-babel-temp-file "ob-typst-out"
                                             (format ".%s" org-typst-default-format))))
          (vars (org-babel-variable-assignments:typst params))
          (full-body (org-babel-expand-body:generic body params vars)))
     (org-typst--babel-create-image full-body out-file)
-    out-file))
+    (unless (alist-get :file params) out-file)))
 
 (provide 'ob-typst)
 

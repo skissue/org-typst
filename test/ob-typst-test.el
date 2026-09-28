@@ -52,15 +52,19 @@
       ("svg" (should (string-match-p "<svg[ >]" data)))
       (_ (error "Unknown test format: %s" format)))))
 
-(defun ob-typst-test--block (headers body &optional name)
-  "Execute a real Babel block with HEADERS, BODY, and optional NAME."
+(defun ob-typst-test--block (headers body &optional name expected-file)
+  "Execute HEADERS and BODY with optional NAME, checking EXPECTED-FILE's link."
   (with-temp-buffer
     (org-mode)
     (when name (insert "#+name: " name "\n"))
     (insert "#+begin_src typst " headers "\n" body "\n#+end_src\n")
     (goto-char (point-min))
     (when name (forward-line))
-    (org-babel-execute-src-block)))
+    (prog1 (org-babel-execute-src-block)
+      (when expected-file
+        (should (string-match-p
+                 (regexp-quote (concat "[[file:" expected-file "]]"))
+                 (buffer-string)))))))
 
 (defun ob-typst-test--assert-value (value expected)
   "Compile an assertion that converted VALUE equals independent Typst EXPECTED."
@@ -189,7 +193,7 @@
     (dolist (format '("png" "pdf" "svg"))
       (ert-info (format)
         (let ((file (concat "render." format)))
-          (org-babel-execute:typst "Hello" `((:outfile . ,file)))
+          (should-not (org-babel-execute:typst "Hello" `((:file . ,file))))
           (ob-typst-test--assert-format file format))))))
 
 (ert-deftest ob-typst-render-default-format ()
@@ -202,7 +206,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (make-directory "some images")
-    (org-babel-execute:typst "Hello" '((:outfile . "some images/a b.png")))
+    (org-babel-execute:typst "Hello" '((:file . "some images/a b.png")))
     (ob-typst-test--assert-format "some images/a b.png" "png")))
 
 (ert-deftest ob-typst-render-preamble-and-variables ()
@@ -217,14 +221,24 @@
 (ert-deftest ob-typst-babel-file-header ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (ob-typst-test--block ":file result.svg" "Hello")
+    (should (equal (ob-typst-test--block ":file result.svg" "Hello" nil "result.svg")
+                   "result.svg"))
+    (ob-typst-test--assert-format "result.svg" "svg")))
+
+(ert-deftest ob-typst-babel-file-results-override ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (should (equal (ob-typst-test--block ":file result.svg :results file" "Hello"
+                                        nil "result.svg")
+                   "result.svg"))
     (ob-typst-test--assert-format "result.svg" "svg")))
 
 (ert-deftest ob-typst-babel-file-ext-and-output-dir ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (make-directory "images")
-    (ob-typst-test--block ":file-ext svg :output-dir images" "Hello" "diagram")
+    (ob-typst-test--block ":file-ext svg :output-dir images" "Hello" "diagram"
+                          "images/diagram.svg")
     (ob-typst-test--assert-format "images/diagram.svg" "svg")))
 
 (ert-deftest ob-typst-babel-default-result-survives-scratch-cleanup ()
@@ -276,7 +290,7 @@
 (ert-deftest ob-typst-render-multipage-pdf ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (org-babel-execute:typst "First\n#pagebreak()\nSecond" '((:outfile . "pages.pdf")))
+    (org-babel-execute:typst "First\n#pagebreak()\nSecond" '((:file . "pages.pdf")))
     (ob-typst-test--assert-format "pages.pdf" "pdf")
     (should (string-match-p "/Count 2\\b" (ob-typst-test--contents "pages.pdf")))))
 
@@ -284,7 +298,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (org-babel-execute:typst "First\n#pagebreak()\nSecond"
-                            '((:outfile . "page-{p}.png")))
+                            '((:file . "page-{p}.png")))
     (ob-typst-test--assert-format "page-1.png" "png")
     (ob-typst-test--assert-format "page-2.png" "png")
     (should-not (file-exists-p "page-3.png"))))
@@ -293,7 +307,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (org-babel-execute:typst "First\n#pagebreak()\nSecond"
-                            '((:outfile . "page-{p}.svg")))
+                            '((:file . "page-{p}.svg")))
     (ob-typst-test--assert-format "page-1.svg" "svg")
     (ob-typst-test--assert-format "page-2.svg" "svg")
     (should-not (file-exists-p "page-3.svg"))))
@@ -307,7 +321,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (with-temp-file "existing.png" (insert "do not overwrite"))
-    (should-error (org-babel-execute:typst "#let =" '((:outfile . "existing.png"))))
+    (should-error (org-babel-execute:typst "#let =" '((:file . "existing.png"))))
     (should (equal (ob-typst-test--contents "existing.png") "do not overwrite"))))
 
 (defun ob-typst-test--reject-format (file)
@@ -317,7 +331,7 @@
     (cl-letf (((symbol-function 'executable-find) (lambda (_) "/mock/typst"))
               ((symbol-function 'org-compile-file)
                (lambda (&rest _) (ert-fail "Invalid format reached shell compiler"))))
-      (should-error (org-babel-execute:typst "Hello" `((:outfile . ,file)))
+      (should-error (org-babel-execute:typst "Hello" `((:file . ,file)))
                     :type 'user-error))))
 
 (ert-deftest ob-typst-error-missing-extension ()
