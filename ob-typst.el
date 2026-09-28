@@ -1,6 +1,6 @@
 ;;; ob-typst.el --- Org Babel support for Typst -*- lexical-binding: t -*-
 
-;; Copyright (C) 2024 Ad
+;; Copyright (C) 2026 Ad
 
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "26.1") (org "9.6"))
