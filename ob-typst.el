@@ -149,15 +149,28 @@ formats are png, pdf, and svg."
 ;;;###autoload
 (defun org-babel-execute:typst (body params)
   "Execute a block BODY of Typst markup.
-Write to :file in PARAMS.  If :file is not given, use a temporary output
-file."
-  (let* ((out-file (or (alist-get :file params)
-                       (org-babel-temp-file "ob-typst-out"
-                                            (format ".%s" org-typst-default-format))))
+Write to :file in PARAMS.  If :file is not given, create a unique file in
+:output-dir or typst-results, relative to the execution directory."
+  (let* ((out-file (alist-get :file params))
          (vars (org-babel-variable-assignments:typst params))
-         (full-body (org-babel-expand-body:generic body params vars)))
-    (org-typst--babel-create-image full-body out-file)
-    (unless (alist-get :file params) out-file)))
+         (full-body (org-babel-expand-body:generic body params vars))
+         success)
+    (unless out-file
+      (unless (member org-typst-default-format '("png" "pdf" "svg"))
+        (user-error "Unsupported Typst output format %S; expected png, pdf, or svg"
+                    org-typst-default-format))
+      (let ((directory (expand-file-name
+                        (or (alist-get :output-dir params) "typst-results"))))
+        (make-directory directory t)
+        (setq out-file (make-temp-file (expand-file-name "ob-typst-" directory)
+                                       nil (concat "." org-typst-default-format)))))
+    (unwind-protect
+        (progn
+          (org-typst--babel-create-image full-body out-file)
+          (setq success t)
+          (unless (alist-get :file params) out-file))
+      (unless (or success (alist-get :file params))
+        (delete-file out-file)))))
 
 (provide 'ob-typst)
 

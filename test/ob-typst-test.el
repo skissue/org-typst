@@ -264,6 +264,41 @@
       (delete-directory org-babel-temporary-directory t)
       (ob-typst-test--assert-format file "png"))))
 
+(ert-deftest ob-typst-babel-automatic-output-directory-and-links ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (dolist (headers '("" ":output-dir images" ":dir assets"))
+      (make-directory "assets" t)
+      (with-temp-buffer
+        (org-mode)
+        (insert "#+begin_src typst " headers "\nHello\n#+end_src\n")
+        (goto-char (point-min))
+        (let* ((file (org-babel-execute-src-block))
+               (directory (pcase headers
+                            ("" "typst-results")
+                            (":output-dir images" "images")
+                            (_ "assets/typst-results"))))
+          (should (equal (file-name-directory file)
+                         (file-name-as-directory (expand-file-name directory))))
+          (should (string-match-p
+                   (concat "\\[\\[file:[^]\n]*"
+                           (regexp-quote (file-name-nondirectory file)) "\\]\\]")
+                   (buffer-string)))
+          (ob-typst-test--assert-format file "png"))))))
+
+(ert-deftest ob-typst-render-automatic-output-lifecycle ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (let* ((first (org-babel-execute:typst "First" nil))
+           (contents (ob-typst-test--contents first))
+           (second (org-babel-execute:typst "Second" nil))
+           (files (directory-files "typst-results")))
+      (should-not (equal first second))
+      (ob-typst-test--assert-format second "png")
+      (should-error (org-babel-execute:typst "#let =" nil))
+      (should (equal (directory-files "typst-results") files))
+      (should (equal (ob-typst-test--contents first) contents)))))
+
 (ert-deftest ob-typst-render-relative-read ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
