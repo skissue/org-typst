@@ -150,6 +150,10 @@
 (ert-deftest ob-typst-value-string ()
   (ob-typst-test--assert-value "Hello λ #[]" "\"Hello λ #[]\""))
 
+(ert-deftest ob-typst-value-unsupported-types ()
+  (dolist (value '(unexpected [1 2] (1 unexpected)))
+    (should-error (org-typst--babel-convert-var value) :type 'error)))
+
 (ert-deftest ob-typst-value-empty-array ()
   (ob-typst-test--assert-value nil "()"))
 

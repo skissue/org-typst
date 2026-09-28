@@ -101,11 +101,12 @@ Having \"raw\" outputs a raw link, which can be shown inline with
     (number-to-string var))
    ((eq 'hline var)
     org-typst-babel-hline-value)
-   (t
+   ((stringp var)
     (concat "\""
-            (mapconcat #'org-typst--escape-string-char
-                       (format "%s" var) "")
-            "\""))))
+            (mapconcat #'org-typst--escape-string-char var "")
+            "\""))
+   (t
+    (error "Unsupported Typst variable type: %S" (type-of var)))))
 
 (defun org-babel-variable-assignments:typst (params)
   "Return Typst markup that sets all variables from PARAMS,
