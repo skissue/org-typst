@@ -117,6 +117,8 @@ formats are png, pdf, and svg."
   (let* ((tmpfile (org-babel-temp-file "ob-typst-src"))
          (ext (file-name-extension tofile))
          (log-buf (get-buffer-create "*Org Typst Output*")))
+    (unless (member ext '("png" "pdf" "svg"))
+      (user-error "Unsupported Typst output format %S; expected png, pdf, or svg" ext))
     (with-temp-file tmpfile
       (insert
        (string-join org-typst-babel-preamble "\n")
