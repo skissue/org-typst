@@ -51,8 +51,8 @@
   :group 'ob-typst)
 
 (defcustom org-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
-  "List of strings that will be prepended to all Typst code. Use
- to add packages, set rules, etc.
+  "List of strings that will be prepended to all Typst code.
+Use to add packages, set rules, etc.
 
 By default, contains a rule to appropriately size the output
 image."
@@ -60,9 +60,9 @@ image."
   :group 'ob-typst)
 
 (defcustom org-typst-babel-hline-value "none"
-  "A string that controls what to replace the `hline' symbol with
-when using a table as a variable and horizontal lines are
-included. By default, `hline' is replaced with the Typst value none.
+  "A string that controls what to replace the `hline' symbol in tables with.
+Applies when using a table as a variable and horizontal lines are
+included. By default, `hline' is replaced with the Typst value `none'.
 
 Note that this is interpolated literally, so strings need quotes
 around them!"
@@ -109,8 +109,8 @@ Having \"raw\" outputs a raw link, which can be shown inline with
     (error "Unsupported Typst variable type: %S" (type-of var)))))
 
 (defun org-babel-variable-assignments:typst (params)
-  "Return Typst markup that sets all variables from PARAMS,
-converting values with `org-typst--babel-convert-var'."
+  "Return Typst markup that sets all variables from PARAMS.
+Values are converted with `org-typst--babel-convert-var'."
   (mapcar
    (lambda (var)
      (format "#let %s = %s"
