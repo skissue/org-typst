@@ -157,6 +157,9 @@
 (ert-deftest ob-typst-value-empty-array ()
   (ob-typst-test--assert-value nil "()"))
 
+(ert-deftest ob-typst-value-nested-empty-array ()
+  (ob-typst-test--assert-value '(nil) "((),)"))
+
 (ert-deftest ob-typst-value-table ()
   (ob-typst-test--assert-value '((1 "east") (9 "west"))
                              "((1, \"east\"), (9, \"west\"))"))

@@ -96,7 +96,7 @@ Having \"raw\" outputs a raw link, which can be shown inline with
     (let ((list (mapconcat #'org-typst--babel-convert-var
                            var
                            ", ")))
-      (format "(%s)" list)))
+      (format (if var "(%s,)" "()") list)))
    ((numberp var)
     (number-to-string var))
    ((eq 'hline var)
