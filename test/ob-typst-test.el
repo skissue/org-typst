@@ -172,8 +172,14 @@
 (ert-deftest ob-typst-value-backslash ()
   (ob-typst-test--assert-value "C:\\temp" "\"C:\\\\temp\""))
 
+(ert-deftest ob-typst-value-mixed-escapes ()
+  ;; Independent code points avoid duplicating the serializer's escape syntax.
+  (ob-typst-test--assert-value "\\\"λ\\n\\"
+                             "(92, 34, 955, 92, 110, 92).map(str.from-unicode).join()"))
+
 (ert-deftest ob-typst-value-control-characters ()
-  (ob-typst-test--assert-value "a\nb\tc\r" "\"a\\nb\\tc\\r\""))
+  (ob-typst-test--assert-value "a\nb\tc\r\b\f\0\177"
+                             "\"a\\nb\\tc\\r\\u{8}\\u{c}\\u{0}\\u{7f}\""))
 
 (ert-deftest ob-typst-value-code-like-string ()
   (ob-typst-test--assert-value "\"; panic(\"injected\"); //"

@@ -77,6 +77,18 @@ around them!"
 Having \"raw\" outputs a raw link, which can be shown inline with
 `org-toggle-inline-images'.")
 
+(defsubst org-typst--escape-string-char (char)
+  "Return the Typst string literal representation of CHAR."
+  (pcase char
+    (?\\ "\\\\")
+    (?\" "\\\"")
+    (?\n "\\n")
+    (?\r "\\r")
+    (?\t "\\t")
+    (_ (if (or (< char 32) (= char 127))
+           (format "\\u{%x}" char)
+         (char-to-string char)))))
+
 (defun org-typst--babel-convert-var (var)
   "Convert the value VAR to an appropriate representation in Typst."
   (cond
@@ -90,7 +102,10 @@ Having \"raw\" outputs a raw link, which can be shown inline with
    ((eq 'hline var)
     org-typst-babel-hline-value)
    (t
-    (format "\"%s\"" var))))
+    (concat "\""
+            (mapconcat #'org-typst--escape-string-char
+                       (format "%s" var) "")
+            "\""))))
 
 (defun org-babel-variable-assignments:typst (params)
   "Return Typst markup that sets all variables from PARAMS,
