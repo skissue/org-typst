@@ -1,0 +1,13 @@
+* Raw Typst
+This word is @@typst:#text(fill: red)[red]@@.
+
+#+begin_export typst
+#align(center)[*Custom Typst content*]
+#set text(fill: blue)
+#+end_export
+
+This ordinary Org paragraph inherits the blue text setting.
+
+#+begin_src typst
+#text(fill: red)[This is displayed code, not executed.]
+#+end_src

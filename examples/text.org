@@ -1,0 +1,9 @@
+* A small Typst exporter
+Plain text, *bold*, /italic/, _underlined_, and +crossed out+.
+Inline code: ~array[0]~ and =literal `backticks`=.
+
+** Links and literal punctuation
+https://typst.app/docs/
+
+[[https://orgmode.org][Org mode]] exports this text without a template.
+Punctuation stays literal: # [brackets] {braces} $5 @name.

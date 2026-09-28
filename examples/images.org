@@ -1,0 +1,11 @@
+* Images without figures
+#+ATTR_TYPST: :width 35%
+[[file:sample.svg]]
+
+#+ATTR_TYPST: :height 1em
+An inline image [[file:sample.svg]] stays in the paragraph.
+
+* A caption creates a figure
+#+CAPTION: Three shapes, with a *bold* caption.
+#+ATTR_TYPST: :width 60%
+[[file:sample.svg]]

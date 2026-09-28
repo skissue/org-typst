@@ -1,0 +1,19 @@
+* Basic lists
+- *Fruit*
+  1. Apples
+  2. Pears
+- Bread and ~butter~
+
+** Steps
+1. Gather ingredients.
+
+   This paragraph belongs to the first step.
+2. Cook.
+   - Stir gently.
+   - Serve warm.
+3. Enjoy!
+
+** Terms
+- Org :: A /plain-text/ document format.
+- Typst :: A typesetting system.
+  - Exports PDF and PNG.

@@ -1,0 +1,17 @@
+* Code and tables
+#+begin_src python
+def greet(name):
+    return f"Hello, {name}!"
+
+print(greet("Org → Typst"))
+#+end_src
+
+| *Item*   | *Count* | *Note*       |
+|----------+---------+--------------|
+| Apples   |       3 | /fresh/      |
+| Pears    |      12 |              |
+| Plums    |       7 | ~batch[2]~   |
+
+#+begin_example
+Literal: ``` # [ ] "quotes" \path
+#+end_example
