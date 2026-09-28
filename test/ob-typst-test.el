@@ -29,6 +29,7 @@
           (org-babel-temporary-directory (expand-file-name "scratch" directory))
           (org-confirm-babel-evaluate nil)
           (org-typst-default-format "png")
+          (org-typst-default-output-directory "typst-results/")
           (org-typst-babel-preamble
            '("#set page(width: auto, height: auto, margin: 0.3em)")))
      (make-directory org-babel-temporary-directory)
@@ -285,6 +286,20 @@
                            (regexp-quote (file-name-nondirectory file)) "\\]\\]")
                    (buffer-string)))
           (ob-typst-test--assert-format file "png"))))))
+
+(ert-deftest ob-typst-render-custom-output-directory ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (dolist (org-typst-default-output-directory '("custom/" nil))
+      (let ((file (org-babel-execute:typst "Hello" nil)))
+        (should (equal (file-name-directory file)
+                       (if org-typst-default-output-directory
+                           (expand-file-name "custom/")
+                         default-directory)))
+        (ob-typst-test--assert-format file "png"))
+      (let ((file (org-babel-execute:typst "Hello" '((:output-dir . "override")))))
+        (should (equal (file-name-directory file) (expand-file-name "override/")))
+        (ob-typst-test--assert-format file "png")))))
 
 (ert-deftest ob-typst-render-automatic-output-lifecycle ()
   (skip-unless (executable-find "typst"))

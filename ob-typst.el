@@ -50,6 +50,13 @@
   :type 'string
   :group 'ob-typst)
 
+(defcustom org-typst-default-output-directory "typst-results/"
+  "Directory for automatic results when neither :file nor :output-dir is given.
+Relative paths are resolved against the execution directory, normally the
+Org file's directory, or :dir when supplied.  nil uses no subdirectory."
+  :type '(choice (const :tag "Execution directory" nil) directory)
+  :group 'ob-typst)
+
 (defcustom org-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
   "List of strings that will be prepended to all Typst code.
 Use to add packages, set rules, etc.
@@ -150,7 +157,7 @@ formats are png, pdf, and svg."
 (defun org-babel-execute:typst (body params)
   "Execute a block BODY of Typst markup.
 Write to :file in PARAMS.  If :file is not given, create a unique file in
-:output-dir or typst-results, relative to the execution directory."
+:output-dir or `org-typst-default-output-directory'."
   (let* ((out-file (alist-get :file params))
          (vars (org-babel-variable-assignments:typst params))
          (full-body (org-babel-expand-body:generic body params vars))
@@ -160,7 +167,9 @@ Write to :file in PARAMS.  If :file is not given, create a unique file in
         (user-error "Unsupported Typst output format %S; expected png, pdf, or svg"
                     org-typst-default-format))
       (let ((directory (expand-file-name
-                        (or (alist-get :output-dir params) "typst-results"))))
+                        (or (alist-get :output-dir params)
+                            org-typst-default-output-directory
+                            default-directory))))
         (make-directory directory t)
         (setq out-file (make-temp-file (expand-file-name "ob-typst-" directory)
                                        nil (concat "." org-typst-default-format)))))
