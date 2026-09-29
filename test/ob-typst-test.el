@@ -317,18 +317,23 @@
 (ert-deftest ob-typst-render-relative-read ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (with-temp-file "data.txt" (insert "local data"))
-    (ob-typst-test--assert-format
-     (org-babel-execute:typst "#assert(read(\"data.txt\") == \"local data\")\nHello" nil)
-     "png")))
+    (with-temp-file "data.txt" (insert "local λ"))
+    (let ((process-environment (copy-sequence process-environment)))
+      (setenv "TYPST_ROOT" org-babel-temporary-directory)
+      (ob-typst-test--assert-format
+       (org-babel-execute:typst "#assert(read(\"data.txt\") == \"local λ\")\nHello" nil)
+       "png"))))
 
 (ert-deftest ob-typst-render-relative-import ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (with-temp-file "helper.typ" (insert "#let answer = 37"))
+    (make-directory "modules")
+    (with-temp-file "modules/data.txt" (insert "nested"))
+    (with-temp-file "modules/helper.typ"
+      (insert "#assert(read(\"data.txt\") == \"nested\")\n#let answer = 37"))
     (ob-typst-test--assert-format
      (org-babel-execute:typst
-      "#import \"helper.typ\": answer\n#assert(answer == 37)\nHello" nil)
+      "#import \"modules/helper.typ\": answer\n#assert(answer == 37)\nHello" nil)
      "png")))
 
 (ert-deftest ob-typst-render-relative-image ()
@@ -385,15 +390,18 @@
   (ob-typst-test--isolated
     (with-temp-file "existing.png" (insert "do not overwrite"))
     (should-error (org-babel-execute:typst "#let =" '((:file . "existing.png"))))
-    (should (equal (ob-typst-test--contents "existing.png") "do not overwrite"))))
+    (should (equal (ob-typst-test--contents "existing.png") "do not overwrite"))
+    (with-current-buffer "*Org Typst Output*"
+      (should (string-match-p "<stdin>" (buffer-string))))
+    (should (equal (directory-files org-babel-temporary-directory nil "^[^.]") nil))))
 
 (defun ob-typst-test--reject-format (file)
-  "Require invalid FILE formats to fail before entering the compiler shell path."
+  "Require invalid FILE formats to fail before invoking the compiler."
   (ob-typst-test--isolated
     ;; Never execute a shell payload, even if validation is absent.
     (cl-letf (((symbol-function 'executable-find) (lambda (_) "/mock/typst"))
-              ((symbol-function 'org-compile-file)
-               (lambda (&rest _) (ert-fail "Invalid format reached shell compiler"))))
+              ((symbol-function 'call-process-region)
+               (lambda (&rest _) (ert-fail "Invalid format reached compiler"))))
       (should-error (org-babel-execute:typst "Hello" `((:file . ,file)))
                     :type 'user-error))))
 
@@ -410,8 +418,8 @@
   (ob-typst-test--isolated
     (let ((org-typst-default-format "png; echo injected; #"))
       (cl-letf (((symbol-function 'executable-find) (lambda (_) "/mock/typst"))
-                ((symbol-function 'org-compile-file)
-                 (lambda (&rest _) (ert-fail "Invalid default reached shell compiler"))))
+                ((symbol-function 'call-process-region)
+                 (lambda (&rest _) (ert-fail "Invalid default reached compiler"))))
         (should-error (org-babel-execute:typst "Hello" nil) :type 'user-error)))))
 
 ;;; ob-typst-test.el ends here

@@ -128,30 +128,39 @@ Values are converted with `org-typst--babel-convert-var'."
 (defun org-typst--babel-create-image (body tofile)
   "Create an image from Typst source using external process.
 
-The Typst markup BODY is saved to a temporary Typst file, then converted to an
-image file using the typst compile command.
+Send the Typst markup BODY to the compiler on stdin, using the execution
+directory as the project root for resource paths.
 
-The generated image file is eventually moved to TOFILE.
+Compile to scratch output before copying to TOFILE, preserving existing
+output if compilation fails.
 
 Generated file format is determined by TOFILE file extension. Supported file
 formats are png, pdf, and svg."
   (unless (executable-find "typst")
     (user-error "No 'typst' executable found!"))
-  (let* ((tmpfile (org-babel-temp-file "ob-typst-src"))
-         (ext (file-name-extension tofile))
+  (let* ((ext (file-name-extension tofile))
+         (tmp-file (org-babel-temp-file "ob-typst-out" (concat "." ext)))
          (log-buf (get-buffer-create "*Org Typst Output*")))
     (unless (member ext '("png" "pdf" "svg"))
       (user-error "Unsupported Typst output format %S; expected png, pdf, or svg" ext))
-    (with-temp-file tmpfile
-      (insert
-       (string-join org-typst-babel-preamble "\n")
-       "\n\n"
-       body))
-    (copy-file (org-compile-file
-                tmpfile
-                (list (format "typst compile --format %s %%F %%O" ext))
-                ext "" log-buf)
-               tofile 'replace)))
+    (with-current-buffer log-buf
+      (erase-buffer))
+    (unwind-protect
+        (with-temp-buffer
+          (insert (string-join org-typst-babel-preamble "\n")
+                  "\n\n"
+                  body)
+          (let* ((coding-system-for-write 'utf-8-unix)
+                 (coding-system-for-read 'utf-8-unix)
+                 (status (call-process-region
+                          (point-min) (point-max) "typst" nil (list log-buf t) nil
+                          "compile" "--root" default-directory
+                          "--format" ext "-" tmp-file)))
+            (unless (equal status 0)
+              (error "Typst compilation failed (%s); see *Org Typst Output*" status)))
+          (copy-file tmp-file tofile 'replace))
+      (when (file-exists-p tmp-file)
+        (delete-file tmp-file)))))
 
 ;;;###autoload
 (defun org-babel-execute:typst (body params)
