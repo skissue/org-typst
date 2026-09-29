@@ -3,7 +3,7 @@
 ;; Copyright (C) 2026 Ad
 
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "26.1") (org "9.6"))
+;; Package-Requires: ((emacs "29.1") (org "9.6"))
 ;; Keywords: literate programming, tools
 ;; Homepage: https://github.com/skissue/org-typst
 
@@ -38,6 +38,7 @@
 (require 'ob)
 (require 'org-macs)
 (require 'subr-x)
+(require 'cl-lib)
 
 (defgroup ob-typst nil
   "Evaluate Typst source blocks with Org Babel."
@@ -78,7 +79,7 @@ around them!"
 
 ;;;###autoload
 (defvar org-babel-default-header-args:typst
-  '((:results . "file graphics raw"))
+  '((:results . "raw"))
   "Default arguments to use when evaluating a Typst source block.
 
 Having \"raw\" outputs a raw link, which can be shown inline with
@@ -132,21 +133,27 @@ Send the Typst markup BODY to the compiler on stdin, using the execution
 directory as the project root for resource paths.
 
 Compile to scratch output before copying to TOFILE, preserving existing
-output if compilation fails.
+output if compilation fails.  TOFILE may contain page placeholders in its
+basename.  Return the generated destination filenames in page order.
 
 Generated file format is determined by TOFILE file extension. Supported file
 formats are png, pdf, and svg."
   (unless (executable-find "typst")
     (user-error "No 'typst' executable found!"))
   (let* ((ext (file-name-extension tofile))
-         (tmp-file (org-babel-temp-file "ob-typst-out" (concat "." ext)))
-         (log-buf (get-buffer-create "*Org Typst Output*")))
-    (unless (member ext '("png" "pdf" "svg"))
-      (user-error "Unsupported Typst output format %S; expected png, pdf, or svg" ext))
-    (with-current-buffer log-buf
-      (erase-buffer))
+         (log-buf (get-buffer-create "*Org Typst Output*"))
+         (tmp-dir (make-temp-file
+                   (expand-file-name "ob-typst-" (org-babel-temp-directory)) t))
+         (tmp-file (expand-file-name (file-name-nondirectory tofile) tmp-dir))
+         (manifest (expand-file-name "outputs.json" tmp-dir)))
     (unwind-protect
         (with-temp-buffer
+          (unless (member ext '("png" "pdf" "svg"))
+            (user-error "Unsupported Typst output format %S; expected png, pdf, or svg" ext))
+          (when (string-match-p "{\\(?:0?p\\|n\\|t\\)}" (or (file-name-directory tofile) ""))
+            (user-error "Typst page placeholders are supported only in the filename"))
+          (with-current-buffer log-buf
+            (erase-buffer))
           (insert (string-join org-typst-babel-preamble "\n")
                   "\n\n"
                   body)
@@ -155,22 +162,35 @@ formats are png, pdf, and svg."
                  (status (call-process-region
                           (point-min) (point-max) "typst" nil (list log-buf t) nil
                           "compile" "--root" default-directory
+                          "--deps" manifest "--deps-format" "json"
                           "--format" ext "-" tmp-file)))
             (unless (equal status 0)
               (error "Typst compilation failed (%s); see *Org Typst Output*" status)))
-          (copy-file tmp-file tofile 'replace))
-      (when (file-exists-p tmp-file)
-        (delete-file tmp-file)))))
+          (erase-buffer)
+          (insert-file-contents manifest)
+          (goto-char (point-min))
+          (cl-loop for file across (alist-get 'outputs
+                                              (json-parse-buffer :object-type 'alist))
+                   for destination = (expand-file-name (file-name-nondirectory file)
+                                                       (file-name-directory tofile))
+                   do (copy-file file destination 'replace)
+                   collect (if (file-name-absolute-p tofile)
+                               destination
+                             (file-relative-name destination))))
+      (delete-directory tmp-dir t))))
 
 ;;;###autoload
 (defun org-babel-execute:typst (body params)
   "Execute a block BODY of Typst markup.
 Write to :file in PARAMS.  If :file is not given, create a unique file in
-:output-dir or `org-typst-default-output-directory'."
+:output-dir or `org-typst-default-output-directory'.
+Return raw Org links, using a RESULTS drawer for multiple pages.
+Explicit :results file is supported for single-file output only."
   (let* ((out-file (alist-get :file params))
+         (file-result (member "file" (alist-get :result-params params)))
          (vars (org-babel-variable-assignments:typst params))
          (full-body (org-babel-expand-body:generic body params vars))
-         success)
+         reservation success)
     (unless out-file
       (unless (member org-typst-default-format '("png" "pdf" "svg"))
         (user-error "Unsupported Typst output format %S; expected png, pdf, or svg"
@@ -180,15 +200,30 @@ Write to :file in PARAMS.  If :file is not given, create a unique file in
                             org-typst-default-output-directory
                             default-directory))))
         (make-directory directory t)
-        (setq out-file (make-temp-file (expand-file-name "ob-typst-" directory)
-                                       nil (concat "." org-typst-default-format)))))
+        (setq reservation (make-temp-file (expand-file-name "ob-typst-" directory)
+                                          nil (concat "." org-typst-default-format)))
+        (setq out-file
+              (if (or file-result (equal org-typst-default-format "pdf"))
+                  reservation
+                (concat (file-name-sans-extension reservation)
+                        "-{p}." org-typst-default-format)))))
     (unwind-protect
         (progn
-          (org-typst--babel-create-image full-body out-file)
-          (setq success t)
-          (unless (alist-get :file params) out-file))
-      (unless (or success (alist-get :file params))
-        (delete-file out-file)))))
+          (when (and file-result (string-match-p "{\\(?:0?p\\|n\\|t\\)}" out-file))
+            (user-error "Use :results raw for patterned Typst output"))
+          (let* ((files (org-typst--babel-create-image full-body out-file))
+                 (links (unless file-result
+                          (mapconcat #'org-babel-result-to-file files "\n"))))
+            (setq success t)
+            (cond
+             (file-result
+              (unless (alist-get :file params) (car files)))
+             ((and (cdr files)
+                   (not (member "drawer" (alist-get :result-params params))))
+              (concat ":results:\n" links "\n:end:"))
+             (t links))))
+      (when (and reservation (not (and success (equal reservation out-file))))
+        (delete-file reservation)))))
 
 (provide 'ob-typst)
 

@@ -33,7 +33,7 @@
           (org-typst-babel-preamble
            '("#set page(width: auto, height: auto, margin: 0.3em)")))
      (make-directory org-babel-temporary-directory)
-     (unwind-protect (progn ,@body)
+     (unwind-protect (with-temp-buffer (org-mode) ,@body)
        (delete-directory directory t))))
 
 (defun ob-typst-test--contents (file)
@@ -43,8 +43,26 @@
     (insert-file-contents-literally file)
     (buffer-string)))
 
+(defun ob-typst-test--result-files (result)
+  "Read file links from raw Org RESULT in order."
+  (with-temp-buffer
+    (org-mode)
+    (insert result)
+    (org-element-map (org-element-parse-buffer) 'link
+      (lambda (link)
+        (should (equal (org-element-property :type link) "file"))
+        (org-link-unescape (org-element-property :path link))))))
+
+(defun ob-typst-test--result-file (result)
+  "Require one file link in RESULT and return its path."
+  (let ((files (ob-typst-test--result-files result)))
+    (should (= (length files) 1))
+    (car files)))
+
 (defun ob-typst-test--assert-format (file format)
   "Assert that FILE contains FORMAT data, not just a pathname or empty output."
+  (when (string-prefix-p "[[" file)
+    (setq file (ob-typst-test--result-file file)))
   (let ((data (ob-typst-test--contents file)))
     (pcase format
       ("png" (should (string-prefix-p
@@ -114,7 +132,7 @@
            (dependencies (package-desc-reqs package)))
       (should (eq (package-desc-name package) 'ob-typst))
       (should (equal (cadr (assq 'org dependencies)) '(9 6)))
-      (should (equal (cadr (assq 'emacs dependencies)) '(26 1)))
+      (should (equal (cadr (assq 'emacs dependencies)) '(27 1)))
       (should-not (assq 'org-mode dependencies)))))
 
 (ert-deftest ob-typst-autoload-defaults-before-first-block ()
@@ -130,14 +148,14 @@
         (unless (autoloadp (symbol-function 'org-babel-execute:typst))
           (error "Executor is not autoloaded"))
         (unless (equal org-babel-default-header-args:typst
-                       '((:results . "file graphics raw")))
+                       '((:results . "raw")))
           (error "Defaults missing before backend load"))
         (require 'ob)
         (with-temp-buffer
           (org-mode)
           (insert "#+begin_src typst\nHello\n#+end_src\n")
           (goto-char (point-min))
-          (unless (member "file" (cdr (assq :result-params
+          (unless (member "raw" (cdr (assq :result-params
                                            (nth 2 (org-babel-get-src-block-info)))))
             (error "First block did not receive defaults")))
         ;; Resolve the real generated autoload without requiring the compiler.
@@ -207,7 +225,8 @@
     (dolist (format '("png" "pdf" "svg"))
       (ert-info (format)
         (let ((file (concat "render." format)))
-          (should-not (org-babel-execute:typst "Hello" `((:file . ,file))))
+          (should-not (org-babel-execute:typst
+                       "Hello" `((:file . ,file) (:result-params . ("file")))))
           (ob-typst-test--assert-format file format))))))
 
 (ert-deftest ob-typst-render-default-format ()
@@ -236,7 +255,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (should (equal (ob-typst-test--block ":file result.svg" "Hello" nil "result.svg")
-                   "result.svg"))
+                   "[[file:result.svg]]"))
     (ob-typst-test--assert-format "result.svg" "svg")))
 
 (ert-deftest ob-typst-babel-file-results-override ()
@@ -258,7 +277,7 @@
 (ert-deftest ob-typst-babel-default-result-survives-scratch-cleanup ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (let ((file (ob-typst-test--block "" "Hello")))
+    (let ((file (ob-typst-test--result-file (ob-typst-test--block "" "Hello"))))
       (ob-typst-test--assert-format file "png")
       ;; Simulate Babel's shutdown cleanup, without requiring a naming scheme
       ;; for the durable result file.
@@ -274,7 +293,7 @@
         (org-mode)
         (insert "#+begin_src typst " headers "\nHello\n#+end_src\n")
         (goto-char (point-min))
-        (let* ((file (org-babel-execute-src-block))
+        (let* ((file (ob-typst-test--result-file (org-babel-execute-src-block)))
                (directory (pcase headers
                             ("" "typst-results")
                             (":output-dir images" "images")
@@ -291,22 +310,23 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (dolist (org-typst-default-output-directory '("custom/" nil))
-      (let ((file (org-babel-execute:typst "Hello" nil)))
+      (let ((file (ob-typst-test--result-file (org-babel-execute:typst "Hello" nil))))
         (should (equal (file-name-directory file)
                        (if org-typst-default-output-directory
                            (expand-file-name "custom/")
                          default-directory)))
         (ob-typst-test--assert-format file "png"))
-      (let ((file (org-babel-execute:typst "Hello" '((:output-dir . "override")))))
+      (let ((file (ob-typst-test--result-file
+                   (org-babel-execute:typst "Hello" '((:output-dir . "override"))))))
         (should (equal (file-name-directory file) (expand-file-name "override/")))
         (ob-typst-test--assert-format file "png")))))
 
 (ert-deftest ob-typst-render-automatic-output-lifecycle ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (let* ((first (org-babel-execute:typst "First" nil))
+    (let* ((first (ob-typst-test--result-file (org-babel-execute:typst "First" nil)))
            (contents (ob-typst-test--contents first))
-           (second (org-babel-execute:typst "Second" nil))
+           (second (ob-typst-test--result-file (org-babel-execute:typst "Second" nil)))
            (files (directory-files "typst-results")))
       (should-not (equal first second))
       (ob-typst-test--assert-format second "png")
@@ -379,6 +399,82 @@
     (ob-typst-test--assert-format "page-1.svg" "svg")
     (ob-typst-test--assert-format "page-2.svg" "svg")
     (should-not (file-exists-p "page-3.svg"))))
+
+(ert-deftest ob-typst-babel-multipage-links ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (dolist (format '("png" "svg"))
+      (let ((org-typst-default-format format))
+        (with-temp-buffer
+          (org-mode)
+          (insert "#+begin_src typst\nFirst\n#pagebreak()\nSecond\n#+end_src\n")
+          (goto-char (point-min))
+          (let ((files (ob-typst-test--result-files (org-babel-execute-src-block))))
+            (should (= (length files) 2))
+            (should (equal (ob-typst-test--result-files (buffer-string)) files))
+            (dolist (file files) (ob-typst-test--assert-format file format))
+            (should (string-suffix-p (concat "-1." format) (car files)))
+            (should (string-suffix-p (concat "-2." format) (cadr files)))))))))
+
+(ert-deftest ob-typst-babel-multipage-patterns-and-stale-pages ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (dolist (pattern '("page-{p}.svg" "page-{0p}-of-{t}.svg"))
+      (let* ((body (mapconcat #'number-to-string (number-sequence 1 12) "\n#pagebreak()\n"))
+             (expected (mapcar (lambda (n)
+                                 (if (equal pattern "page-{p}.svg")
+                                     (format "page-%d.svg" n)
+                                   (format "page-%02d-of-12.svg" n)))
+                               (number-sequence 1 12))))
+        (with-temp-file "page-99.svg" (insert "stale"))
+        (with-temp-buffer
+          (org-mode)
+          (insert "#+begin_src typst :file " pattern "\n" body "\n#+end_src\n")
+          (goto-char (point-min))
+          (should (equal (ob-typst-test--result-files (org-babel-execute-src-block)) expected))
+          (should (equal (ob-typst-test--result-files (buffer-string)) expected))
+          (goto-char (point-min))
+          (forward-line)
+          (let ((start (point)))
+            (search-forward "#+end_src")
+            (beginning-of-line)
+            (delete-region start (point))
+            (insert "One page\n"))
+          (goto-char (point-min))
+          (org-babel-execute-src-block)
+          (should (equal (ob-typst-test--result-files (buffer-string))
+                         (list (if (equal pattern "page-{p}.svg")
+                                   "page-1.svg" "page-1-of-1.svg"))))
+          (should (file-exists-p (car (last expected))))))
+      (should (equal (ob-typst-test--contents "page-99.svg") "stale")))))
+
+(ert-deftest ob-typst-babel-raw-links-with-dir ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (make-directory "assets")
+    (with-temp-buffer
+      (org-mode)
+      (setq buffer-file-name (expand-file-name "document.org"))
+      (insert "#+begin_src typst :dir assets :file page-{p}.svg\nHello\n#+end_src\n")
+      (goto-char (point-min))
+      (org-babel-execute-src-block)
+      (let ((file (ob-typst-test--result-file (buffer-string))))
+        (should (equal (expand-file-name file) (expand-file-name "assets/page-1.svg")))
+        (ob-typst-test--assert-format file "svg")))))
+
+(ert-deftest ob-typst-multipage-errors-preserve-output ()
+  (skip-unless (executable-find "typst"))
+  (ob-typst-test--isolated
+    (with-temp-file "page-1.svg" (insert "keep"))
+    (should-error (org-babel-execute:typst "#let =" '((:file . "page-{p}.svg"))))
+    (should (equal (ob-typst-test--contents "page-1.svg") "keep"))
+    (should-error (ob-typst-test--block ":file page-{p}.svg :results file" "Hello")
+                  :type 'user-error)
+    (should-error (org-babel-execute:typst "First\n#pagebreak()\nSecond"
+                                          '((:file . "single.svg"))))
+    (should-not (file-exists-p "single.svg"))
+    (should-error (org-babel-execute:typst "Hello" '((:file . "dir-{p}/page.svg")))
+                  :type 'user-error)))
 
 (ert-deftest ob-typst-error-missing-executable ()
   (ob-typst-test--isolated
