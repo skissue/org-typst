@@ -54,6 +54,26 @@
   (should (equal (org-export-string-as "* Hello\nWorld.\n" 'typst)
                  "#heading(level: 1)[Hello]\nWorld\\.\n")))
 
+(ert-deftest ox-typst-paper-size ()
+  (let ((ox-typst-paper-size "us-letter"))
+    (should (equal (org-export-string-as "* Hello\nWorld.\n" 'typst)
+                   "#set page(\"us-letter\")\n#heading(level: 1)[Hello]\nWorld\\.\n"))
+    (should (equal (org-typst-test-export "* Hello\nWorld.\n")
+                   "#heading(level: 1)[Hello]\nWorld\\.\n"))
+    (should (equal (org-export-string-as "Text\n" 'typst nil
+                                        '(:ox-typst-paper-size "a5"))
+                   "#set page(\"a5\")\nText\n"))
+    (should (equal (org-export-string-as "Text\n" 'typst nil
+                                        '(:ox-typst-paper-size nil))
+                   "Text\n"))))
+
+(ert-deftest ox-typst-paper-size-body-override ()
+  (let ((ox-typst-paper-size "us-letter"))
+    (should (equal (org-export-string-as
+                    "#+begin_export typst\n#set page(\"a4\")\n#+end_export\nText\n"
+                    'typst)
+                   "#set page(\"us-letter\")\n#set page(\"a4\")\nText\n"))))
+
 (ert-deftest org-typst-text-and-headings ()
   (should (equal (org-typst-test-export "* One\n** Two\n*bold /nested/* _u_ +s+\n")
                  "#heading(level: 1)[One]\n#heading(level: 2)[Two]\n#strong[bold #emph[nested]] #underline[u] #strike[s]\n"))

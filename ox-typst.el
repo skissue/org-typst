@@ -32,8 +32,24 @@
 (require 'ox)
 (require 'json)
 
+(defgroup ox-typst nil
+  "Options for exporting Org files to Typst."
+  :group 'org-export
+  :prefix "ox-typst-")
+
+(defcustom ox-typst-paper-size nil
+  "Default paper size for full-document Typst exports.
+Use a Typst paper name, such as \"us-letter\" or \"a4\".
+When nil, leave the paper size to Typst or the document's template.
+The setting precedes the document body, so later Typst page rules can
+override it.  Body-only exports are unaffected."
+  :group 'ox-typst
+  :type '(choice (const :tag "Use Typst or template default" nil)
+                 (string :tag "Typst paper name"))
+  :safe #'string-or-null-p)
+
 (org-export-define-backend 'typst
-                           '((template . (lambda (contents _info) contents))
+                           '((template . ox-typst-template)
                              (section . org-typst-contents)
                              (paragraph . org-typst-contents)
                              (plain-text . org-typst-plain-text)
@@ -54,12 +70,19 @@
                              (table . org-typst-table)
                              (table-row . org-typst-table-row)
                              (table-cell . org-typst-table-cell))
-                           :options-alist '((:with-toc nil nil nil)
+                           :options-alist '((:ox-typst-paper-size nil nil ox-typst-paper-size)
+                                            (:with-toc nil nil nil)
                                             (:section-numbers nil nil nil)
                                             (:with-sub-superscript nil nil nil))
                            :menu-entry '(?y "Export to Typst"
                                             ((?y "To .typ file" org-typst-export-to-typst)
                                              (?p "To .pdf file" org-typst-export-to-pdf))))
+
+(defun ox-typst-template (contents info)
+  "Build a complete Typst document from CONTENTS using export context INFO."
+  (concat (when-let* ((paper (plist-get info :ox-typst-paper-size)))
+            (format "#set page(%s)\n" (json-encode-string paper)))
+          contents))
 
 (defun org-typst-contents (_element contents _info)
   "Pass CONTENTS through unchanged."
