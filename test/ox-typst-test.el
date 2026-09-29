@@ -5,6 +5,51 @@
 (defun org-typst-test-export (source)
   (org-export-string-as source 'typst t '(:with-broken-links t)))
 
+(ert-deftest org-typst-pdf-export ()
+  (let* ((directory (make-temp-file "org-typst-test-" t))
+         (default-directory (file-name-as-directory directory))
+         (typ (expand-file-name "my document.typ"))
+         (pdf (expand-file-name "my document.pdf")))
+    (unwind-protect
+        (with-temp-buffer
+          (org-mode)
+          (setq buffer-file-name (expand-file-name "source.org"))
+          (insert "#+EXPORT_FILE_NAME: my document\n* Hello\nWorld.\n")
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program infile destination display &rest args)
+                       (should (equal program "typst"))
+                       (should-not infile)
+                       (should-not display)
+                       (should destination)
+                       (should (equal args (list "compile" typ pdf)))
+                       (should (equal (with-temp-buffer
+                                        (insert-file-contents typ)
+                                        (buffer-string))
+                                      "#heading(level: 1)[Hello]\nWorld\\.\n"))
+                       (with-temp-file pdf (insert "%PDF-test"))
+                       0)))
+            (should (equal (org-typst-export-to-pdf) pdf)))
+          (should (file-exists-p typ))
+          (should (file-exists-p pdf)))
+      (delete-directory directory t))))
+
+(ert-deftest org-typst-pdf-compile-failure ()
+  (let* ((directory (make-temp-file "org-typst-test-" t))
+         (typ (expand-file-name "document.typ" directory))
+         (pdf (expand-file-name "document.pdf" directory)))
+    (unwind-protect
+        (progn
+          (with-temp-file typ (insert "#invalid"))
+          (with-temp-file pdf (insert "old PDF"))
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (&rest _) 1)))
+            (should (string-match-p
+                     "Typst compilation failed"
+                     (error-message-string
+                      (should-error (org-typst-compile typ) :type 'error)))))
+          (should (file-exists-p typ)))
+      (delete-directory directory t))))
+
 (ert-deftest org-typst-full-document ()
   (should (equal (org-export-string-as "* Hello\nWorld.\n" 'typst)
                  "#heading(level: 1)[Hello]\nWorld\\.\n")))

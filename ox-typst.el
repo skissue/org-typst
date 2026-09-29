@@ -58,7 +58,8 @@
                                             (:section-numbers nil nil nil)
                                             (:with-sub-superscript nil nil nil))
                            :menu-entry '(?y "Export to Typst"
-                                            ((?y "To .typ file" org-typst-export-to-typst))))
+                                            ((?y "To .typ file" org-typst-export-to-typst)
+                                             (?p "To .pdf file" org-typst-export-to-pdf))))
 
 (defun org-typst-contents (_element contents _info)
   "Pass CONTENTS through unchanged."
@@ -182,6 +183,29 @@ ASYNC, SUBTREEP, VISIBLE-ONLY, BODY-ONLY and EXT-PLIST are passed to Org."
   (interactive)
   (org-export-to-file 'typst (org-export-output-file-name ".typ" subtreep)
     async subtreep visible-only body-only ext-plist))
+
+;;;###autoload
+(defun org-typst-export-to-pdf (&optional async subtreep visible-only body-only ext-plist)
+  "Export to .typ, then compile to PDF, keeping both files.
+ASYNC, SUBTREEP, VISIBLE-ONLY, BODY-ONLY and EXT-PLIST are passed to Org.
+Return the PDF filename, or use the export stack when ASYNC is non-nil."
+  (interactive)
+  (org-export-to-file 'typst (org-export-output-file-name ".typ" subtreep)
+    async subtreep visible-only body-only ext-plist #'org-typst-compile))
+
+(defun org-typst-compile (file)
+  "Compile Typst FILE to a sibling PDF and return its filename.
+Keep FILE and capture compiler diagnostics in `*Org Typst PDF Output*'.
+Requires the typst executable on `exec-path'."
+  (let* ((file (expand-file-name file))
+         (pdf (concat (file-name-sans-extension file) ".pdf"))
+         (log (get-buffer-create "*Org Typst PDF Output*")))
+    (with-current-buffer log (erase-buffer))
+    (unless (equal (call-process "typst" nil (list log t) nil
+                                 "compile" file pdf)
+                   0)
+      (error "Typst compilation failed; see *Org Typst PDF Output*"))
+    pdf))
 
 (provide 'ox-typst)
 
