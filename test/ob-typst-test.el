@@ -28,9 +28,9 @@
           (default-directory (file-name-as-directory directory))
           (org-babel-temporary-directory (expand-file-name "scratch" directory))
           (org-confirm-babel-evaluate nil)
-          (org-typst-default-format "png")
-          (org-typst-default-output-directory "typst-results/")
-          (org-typst-babel-preamble
+          (ob-typst-default-format "png")
+          (ob-typst-default-output-directory "typst-results/")
+          (ob-typst-babel-preamble
            '("#set page(width: auto, height: auto, margin: 0.3em)")))
      (make-directory org-babel-temporary-directory)
      (unwind-protect (with-temp-buffer (org-mode) ,@body)
@@ -92,7 +92,7 @@
     (ob-typst-test--assert-format
      (org-babel-execute:typst
       (format "#assert(%s == %s)\nValue checked"
-              (org-typst--babel-convert-var value) expected)
+              (ob-typst--babel-convert-var value) expected)
       nil)
      "png")))
 
@@ -160,7 +160,7 @@
 
 (ert-deftest ob-typst-value-unsupported-types ()
   (dolist (value '(unexpected [1 2] (1 unexpected)))
-    (should-error (org-typst--babel-convert-var value) :type 'error)))
+    (should-error (ob-typst--babel-convert-var value) :type 'error)))
 
 (ert-deftest ob-typst-value-empty-array ()
   (ob-typst-test--assert-value nil "()"))
@@ -201,11 +201,11 @@
                              "\"\\\"; panic(\\\"injected\\\"); //\""))
 
 (ert-deftest ob-typst-value-hline ()
-  (let ((org-typst-babel-hline-value "none"))
+  (let ((ob-typst-babel-hline-value "none"))
     (ob-typst-test--assert-value '(1 hline 8) "(1, none, 8)")))
 
 (ert-deftest ob-typst-value-custom-hline ()
-  (let ((org-typst-babel-hline-value "\"separator\""))
+  (let ((ob-typst-babel-hline-value "\"separator\""))
     (ob-typst-test--assert-value '(1 hline 8) "(1, \"separator\", 8)")))
 
 (ert-deftest ob-typst-render-supported-formats ()
@@ -221,7 +221,7 @@
 (ert-deftest ob-typst-render-default-format ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (let ((org-typst-default-format "svg"))
+    (let ((ob-typst-default-format "svg"))
       (ob-typst-test--assert-format (org-babel-execute:typst "Hello" nil) "svg"))))
 
 (ert-deftest ob-typst-render-output-path-with-spaces ()
@@ -234,7 +234,7 @@
 (ert-deftest ob-typst-render-preamble-and-variables ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (let ((org-typst-babel-preamble '("#let base = 11")))
+    (let ((ob-typst-babel-preamble '("#let base = 11")))
       (ob-typst-test--assert-format
        (org-babel-execute:typst "#assert(base + n == 14)\nHello"
                                 '((:var . (n . 3))))
@@ -298,10 +298,10 @@
 (ert-deftest ob-typst-render-custom-output-directory ()
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
-    (dolist (org-typst-default-output-directory '("custom/" nil))
+    (dolist (ob-typst-default-output-directory '("custom/" nil))
       (let ((file (ob-typst-test--result-file (org-babel-execute:typst "Hello" nil))))
         (should (equal (file-name-directory file)
-                       (if org-typst-default-output-directory
+                       (if ob-typst-default-output-directory
                            (expand-file-name "custom/")
                          default-directory)))
         (ob-typst-test--assert-format file "png"))
@@ -393,7 +393,7 @@
   (skip-unless (executable-find "typst"))
   (ob-typst-test--isolated
     (dolist (format '("png" "svg"))
-      (let ((org-typst-default-format format))
+      (let ((ob-typst-default-format format))
         (with-temp-buffer
           (org-mode)
           (insert "#+begin_src typst\nFirst\n#pagebreak()\nSecond\n#+end_src\n")
@@ -501,7 +501,7 @@
 
 (ert-deftest ob-typst-error-invalid-default-format ()
   (ob-typst-test--isolated
-    (let ((org-typst-default-format "png; echo injected; #"))
+    (let ((ob-typst-default-format "png; echo injected; #"))
       (cl-letf (((symbol-function 'executable-find) (lambda (_) "/mock/typst"))
                 ((symbol-function 'call-process-region)
                  (lambda (&rest _) (ert-fail "Invalid default reached compiler"))))

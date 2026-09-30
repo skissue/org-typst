@@ -43,22 +43,22 @@
 (defgroup ob-typst nil
   "Evaluate Typst source blocks with Org Babel."
   :group 'org-babel
-  :prefix "org-typst-")
+  :prefix "ob-typst-")
 
 ;; Babel functionality is based on https://github.com/Cj-bc/ob-typst
-(defcustom org-typst-default-format "png"
+(defcustom ob-typst-default-format "png"
   "Default format to use when rendering Typst markup."
   :type 'string
   :group 'ob-typst)
 
-(defcustom org-typst-default-output-directory "typst-results/"
+(defcustom ob-typst-default-output-directory "typst-results/"
   "Directory for automatic results when neither :file nor :output-dir is given.
 Relative paths are resolved against the execution directory, normally the
 Org file's directory, or :dir when supplied.  nil uses no subdirectory."
   :type '(choice (const :tag "Execution directory" nil) directory)
   :group 'ob-typst)
 
-(defcustom org-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
+(defcustom ob-typst-babel-preamble '("#set page(width: auto, height: auto, margin: 0.3em)")
   "List of strings that will be prepended to all Typst code.
 Use to add packages, set rules, etc.
 
@@ -67,7 +67,7 @@ image."
   :type '(repeat string)
   :group 'ob-typst)
 
-(defcustom org-typst-babel-hline-value "none"
+(defcustom ob-typst-babel-hline-value "none"
   "A string that controls what to replace the `hline' symbol in tables with.
 Applies when using a table as a variable and horizontal lines are
 included. By default, `hline' is replaced with the Typst value `none'.
@@ -85,7 +85,7 @@ around them!"
 Having \"raw\" outputs a raw link, which can be shown inline with
 `org-toggle-inline-images'.")
 
-(defsubst org-typst--escape-string-char (char)
+(defsubst ob-typst--escape-string-char (char)
   "Return the Typst string literal representation of CHAR."
   (pcase char
     (?\\ "\\\\")
@@ -97,36 +97,36 @@ Having \"raw\" outputs a raw link, which can be shown inline with
            (format "\\u{%x}" char)
          (char-to-string char)))))
 
-(defun org-typst--babel-convert-var (var)
+(defun ob-typst--babel-convert-var (var)
   "Convert the value VAR to an appropriate representation in Typst."
   (cond
    ((listp var)
-    (let ((list (mapconcat #'org-typst--babel-convert-var
+    (let ((list (mapconcat #'ob-typst--babel-convert-var
                            var
                            ", ")))
       (format (if var "(%s,)" "()") list)))
    ((numberp var)
     (number-to-string var))
    ((eq 'hline var)
-    org-typst-babel-hline-value)
+    ob-typst-babel-hline-value)
    ((stringp var)
     (concat "\""
-            (mapconcat #'org-typst--escape-string-char var "")
+            (mapconcat #'ob-typst--escape-string-char var "")
             "\""))
    (t
     (error "Unsupported Typst variable type: %S" (type-of var)))))
 
 (defun org-babel-variable-assignments:typst (params)
   "Return Typst markup that sets all variables from PARAMS.
-Values are converted with `org-typst--babel-convert-var'."
+Values are converted with `ob-typst--babel-convert-var'."
   (mapcar
    (lambda (var)
      (format "#let %s = %s"
              (car var)
-             (org-typst--babel-convert-var (cdr var))))
+             (ob-typst--babel-convert-var (cdr var))))
    (org-babel--get-vars params)))
 
-(defun org-typst--babel-create-image (body tofile)
+(defun ob-typst--babel-create-image (body tofile)
   "Create an image from Typst source using external process.
 
 Send the Typst markup BODY to the compiler on stdin, using the execution
@@ -154,7 +154,7 @@ formats are png, pdf, and svg."
             (user-error "Typst page placeholders are supported only in the filename"))
           (with-current-buffer log-buf
             (erase-buffer))
-          (insert (string-join org-typst-babel-preamble "\n")
+          (insert (string-join ob-typst-babel-preamble "\n")
                   "\n\n"
                   body)
           (let* ((coding-system-for-write 'utf-8-unix)
@@ -183,7 +183,7 @@ formats are png, pdf, and svg."
 (defun org-babel-execute:typst (body params)
   "Execute a block BODY of Typst markup.
 Write to :file in PARAMS.  If :file is not given, create a unique file in
-:output-dir or `org-typst-default-output-directory'.
+:output-dir or `ob-typst-default-output-directory'.
 Return raw Org links, using a RESULTS drawer for multiple pages.
 Explicit :results file is supported for single-file output only."
   (let* ((out-file (alist-get :file params))
@@ -192,26 +192,26 @@ Explicit :results file is supported for single-file output only."
          (full-body (org-babel-expand-body:generic body params vars))
          reservation success)
     (unless out-file
-      (unless (member org-typst-default-format '("png" "pdf" "svg"))
+      (unless (member ob-typst-default-format '("png" "pdf" "svg"))
         (user-error "Unsupported Typst output format %S; expected png, pdf, or svg"
-                    org-typst-default-format))
+                    ob-typst-default-format))
       (let ((directory (expand-file-name
                         (or (alist-get :output-dir params)
-                            org-typst-default-output-directory
+                            ob-typst-default-output-directory
                             default-directory))))
         (make-directory directory t)
         (setq reservation (make-temp-file (expand-file-name "ob-typst-" directory)
-                                          nil (concat "." org-typst-default-format)))
+                                          nil (concat "." ob-typst-default-format)))
         (setq out-file
-              (if (or file-result (equal org-typst-default-format "pdf"))
+              (if (or file-result (equal ob-typst-default-format "pdf"))
                   reservation
                 (concat (file-name-sans-extension reservation)
-                        "-{p}." org-typst-default-format)))))
+                        "-{p}." ob-typst-default-format)))))
     (unwind-protect
         (progn
           (when (and file-result (string-match-p "{\\(?:0?p\\|n\\|t\\)}" out-file))
             (user-error "Use :results raw for patterned Typst output"))
-          (let* ((files (org-typst--babel-create-image full-body out-file))
+          (let* ((files (ob-typst--babel-create-image full-body out-file))
                  (links (unless file-result
                           (mapconcat #'org-babel-result-to-file files "\n"))))
             (setq success t)
