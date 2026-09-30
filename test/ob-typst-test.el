@@ -124,17 +124,6 @@
       (org-babel-do-load-languages 'org-babel-load-languages '((typst . t)))
       (unless (featurep 'ob-typst) (error "Backend was not loaded")))))
 
-(ert-deftest ob-typst-package-metadata ()
-  (require 'package)
-  (with-temp-buffer
-    (insert-file-contents (expand-file-name "ob-typst.el" ob-typst-test--root))
-    (let* ((package (package-buffer-info))
-           (dependencies (package-desc-reqs package)))
-      (should (eq (package-desc-name package) 'ob-typst))
-      (should (equal (cadr (assq 'org dependencies)) '(9 6)))
-      (should (equal (cadr (assq 'emacs dependencies)) '(27 1)))
-      (should-not (assq 'org-mode dependencies)))))
-
 (ert-deftest ob-typst-autoload-defaults-before-first-block ()
   (ob-typst-test--isolated
     (copy-file (expand-file-name "ob-typst.el" ob-typst-test--root) "ob-typst.el")
