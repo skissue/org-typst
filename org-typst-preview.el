@@ -204,7 +204,8 @@ MEASURE is non-nil for inline equations with a baseline marker."
                 ((equal (org-element-property :type el) "TYPST")
                  (list (org-element-property :post-affiliated el)
                        (save-excursion (goto-char end) (skip-chars-backward " \t\n") (point))
-                       'block (org-remove-indentation body)))))))))
+                       'block (org-remove-indentation body))))))
+      nil nil nil t))) ; Include snippets in parsed affiliated keywords.
 
 (defun org-typst-preview--refresh ()
   "Reconcile the current session's work against one whole-document snapshot."

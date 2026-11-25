@@ -310,10 +310,20 @@
    "* Verse\n#+begin_verse\n# a @@typst:$x$@@ z\n#+end_verse\n"
    (lambda () (goto-char (point-min)) (search-forward "#+end_verse") (delete-char -1))))
 
-(ert-deftest org-typst-preview-snippet-becomes-table-caption ()
-  (org-typst-preview-test--structural-edit
-   "a @@typst:$x$@@ z\n| 1 |\n"
-   (lambda () (goto-char (point-min)) (insert "#+caption: "))))
+(ert-deftest org-typst-preview-caption-snippets ()
+  (dolist (element '("[[file:image.png]]" "| 1 |"))
+    (org-typst-preview-test--with-buffer
+      (let ((job (org-typst-preview-test--start
+                  (concat "#+caption: Eq. @@typst:$x$@@  and @@html:<b>ignored</b>@@\n"
+                          element "\n"))))
+        (process-send-eof job)
+        (let* ((beg (save-excursion (goto-char (point-min)) (search-forward "Eq. ")))
+               (end (+ beg (length "@@typst:$x$@@"))))
+          (org-typst-preview-test--await (get-char-property beg 'display))
+          (let ((overlays (overlays-in (point-min) (point-max))))
+            (should (= (length overlays) 1))
+            (should (= (overlay-start (car overlays)) beg))
+            (should (= (overlay-end (car overlays)) end))))))))
 
 (ert-deftest org-typst-preview-footnote-auto-enable ()
   (org-typst-preview-test--with-buffer
